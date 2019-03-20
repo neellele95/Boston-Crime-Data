@@ -1,0 +1,304 @@
+---
+Title: "Project 1 - Boston Data Crime"
+Group : "19"
+Author : "Neel Lele & Amogh Thali"
+Output: "html_notebook"
+---
+
+
+```{r, echo = TRUE, warning=FALSE, message=FALSE}
+library("ggplot2") 
+library("gridExtra")
+library("readr")
+library("dplyr") 
+library("lubridate")
+library("janitor")
+library("tidyr")
+library("tidyverse")
+library("DataExplorer")
+library("reshape2")
+library("data.table")
+library("DT")
+library("d3heatmap")
+library("tigerstats")
+library("corrplot")
+library("viridis")
+library("plotly")
+library("tm")
+library("RColorBrewer")
+library("leaflet")
+library("wordcloud")
+```
+```{r}
+raw_crime = read.csv("E:/Masters/Sem 5/comp & visua analystics/b.csv", sep = ",", na.strings =c('','NA','na','N/A','n/a','NaN','nan'), strip.white = TRUE, stringsAsFactors = FALSE)
+df<- raw_crime
+```
+```{r}
+# Cleaning the data
+df <- clean_names(df)
+df_info <- function(x) {
+  data  <- as.character(substitute(x))  
+  size <- format(object.size(x), units="Mb") 
+  
+  plot_missing(data.frame(x))
+  
+  column.info <- data.frame( column        = names(sapply(x, class)),
+                             unique.values = sapply(x, function(y) length(unique(y))),
+                             missing.count = colSums(is.na(x)),
+                             missing.pct   = round(colSums(is.na(x)) / nrow(x) * 100, 2))
+                            
+  row.names(column.info) <- 1:nrow(column.info)
+  list(data.frame     = data.frame(name=data, size=size),
+       dimensions     = data.frame(rows=nrow(x), columns=ncol(x)),
+       column.details = column.info)
+}
+Sys.timezone() 
+```
+```{r}
+df1 = read.csv("E:/Masters/Sem 5/comp & visua analystics/a.csv", sep = ",", na.strings =c('','NA','na','N/A','n/a','NaN','nan'), strip.white = TRUE, stringsAsFactors = FALSE)
+df4 <- df1
+df4 <- clean_names(df4)
+
+# Writing function to get info about our datasets
+df_info <- function(x) {
+  data  <- as.character(substitute(x))  ##data frame name
+  size <- format(object.size(x), units="Mb")  ##size of data frame in Mb
+  
+  plot_missing(data.frame(x))+
+  theme_classic(
+    
+  )# Vizualization of Missing Data.
+  
+  ##column information
+  column.info <- data.frame( column        = names(sapply(x, class)),
+                             #class         = sapply(x, class),
+                             unique.values = sapply(x, function(y) length(unique(y))),
+                             missing.count = colSums(is.na(x)),
+                             missing.pct   = round(colSums(is.na(x)) / nrow(x) * 100, 2))
+                            
+  row.names(column.info) <- 1:nrow(column.info)
+  list(data.frame     = data.frame(name=data, size=size),
+       dimensions     = data.frame(rows=nrow(x), columns=ncol(x)),
+       column.details = column.info)
+}
+Sys.timezone() # Will Display Time zone of your zone
+
+# Information about the datasets
+df_info(df4)
+```
+
+```{r}
+time_diff <- c("0", "6", "12", "18", "24") # Breaking day into 4 intervals
+df$time_diff <- cut(df$hour, 
+                      breaks = time_diff,
+                      labels = c("00-06", "06-12", "12-18", "18-24"), 
+                      include.lowest = TRUE)
+table(df$time_diff)
+#createing Shift plot
+df <- df %>% mutate(shift = ifelse(time_diff == "00-06", "Late Night",
+                                                     ifelse(time_diff == "06-12", "Morning",
+                                                             ifelse(time_diff == "12-18", "Day",
+                                                                    "Evening"))))
+x <- table(df$shift)
+x <- as.table(x)
+x/sum(margin.table(x, 1))
+```
+```{r}
+plot_crime_offense_category = plot_ly(df, x = ~offense_code_group , color = ~shift) %>% 
+  add_histogram() %>%
+  layout(
+    title = "Total crime count distributed by hour",
+    xaxis = list(title = "crime",
+    yaxis = list(title = "Count"
+    
+#marker = list(color = colorRampPalette(brewer.pal(11,"Spectral"))(100))
+  )))
+plot_crime_offense_category
+```
+```{r}
+ca_crime_df <- df[which(as.numeric(df$year) < 2018), ]
+ca_crime_df %>%
+  filter(!is.na(ca_crime_df$district)) %>%
+  group_by(district) %>%
+  summarise(count = n(),na.rm = TRUE) %>%
+  arrange(desc(count)) %>% 
+  ungroup() %>%
+  mutate(district = reorder(district, count)) %>% 
+  ggplot(aes(x = district, y = count))+
+  geom_bar(stat = "identity", color = "white", fill = "skyblue")+
+  geom_text(aes(x= district,  label = paste0(count, sep = "")),
+            hjust =1, vjust =.5, size = 3, color = 'black', fontface = 'italic')+
+  labs(x = "Neighborhood", y = "count",title = "Total crime in Each Neighborhood in 2016 & 2017 ")+
+  coord_flip()+ theme_classic()
+  
+```
+
+```{r}
+#df_2018 <- df[which(as.numeric(df$year) == 2018), ]
+df %>%
+  filter(!is.na(district)) %>%
+  group_by(district) %>%
+  summarise(count = n(),na.rm = TRUE) %>%
+  arrange(desc(count)) %>% 
+  ungroup() %>%
+  mutate(district = reorder(district, count)) %>% 
+  ggplot(aes(x = district, y = count))+
+  geom_bar(stat = "identity", color = "white", fill = "skyblue")+
+    geom_text(aes(x= district, label = paste0(count, sep = "")),
+            hjust =.5, vjust =0, size = 3, color = 'black', fontface = 'italic')+
+  labs(x = "Neighborhood", y = "Count", title = "Total crime in each Neighboorhood for 2016 - 2018")+
+   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+```
+```{r warning= FALSE}
+df %>%
+  filter(!is.na(offense_code_group)) %>%
+    group_by(offense_code_group) %>%
+    summarise(count = n(),na.rm = TRUE) %>%
+    arrange(desc(count)) %>% 
+    ungroup() %>%
+    mutate(offense_code_group = reorder(offense_code_group, count)) %>% 
+    head(10)%>% 
+    ggplot(aes(x = offense_code_group, y = count,fill = offense_code_group)) +
+    geom_bar(stat = "identity", color = "white") +
+    geom_text(aes(x= offense_code_group, label = paste0( "  ",count)),
+              hjust =1, vjust =.5, size = 4, color = 'black', fontface = 'italic')+
+  labs(x = "Crime", y = "Count", title = "Top crime in Boston distibuted")+
+  coord_flip()+
+  theme_classic()
+# length(unique(df$crime)) # We have 54 different types of crime which are reported.
+y <- ca_crime_df %>% filter(!is.na(offense_code_group)) %>% group_by(offense_code_group) %>% summarise(count = n(),na.rm = TRUE) %>% arrange(desc(count)) %>% ungroup() %>% mutate(offense_code_group = reorder(offense_code_group, count))
+```
+```{r}
+z <- df %>%
+  filter(!is.na(year)) %>%
+    group_by(year) %>%
+    summarise(count = n(),na.rm = TRUE) %>%
+    arrange(desc(count)) %>% 
+    ungroup() %>%
+    mutate(year = reorder(year, count)) #%>% 
+    ggplot(z, aes(x = year, y = count))+ scale_color_gradient(low = "white", high = "red") +
+    geom_bar(stat = "identity", color = "blue", fill = "Lightblue", width = 0.25)+
+    geom_text(aes(x= year, label = paste0(" ",count)),
+              hjust =1, vjust =.25, size = 4, color = 'black', fontface = 'italic')+
+    labs(x = "Crime", y = "Count", title = "Total crime in Boston from year 2016-2018 ")+
+    coord_flip()+
+    theme_classic()
+```
+```{r}
+ggplot(subset(df,!is.na(district)))+
+  aes(x=month, color=district)+
+  geom_line(stat="count")+
+  scale_x_continuous(breaks = seq(1,12,1))+
+  labs(title="No. Incidents by Neighborhood on Monthly Basis", x="Neighborhood", y="Number of Incidents")+
+  theme_classic()
+```
+```{r}
+ggplot(df, aes(x = hour)) +
+  geom_area(width=0.8, stat="Count") +
+    labs(title="Reported Crime start time (in Hours)", x="Hour (Format - 24Hrs)", y="Number of Count")+
+  theme_classic()
+```
+```{r}
+counts <- summarise(group_by(ca_crime_df, offense_code_group,month),Counts=length(offense_code_group))
+counts <- counts[order(counts$month), ]
+crime_plot <- dcast(counts,month ~ offense_code_group, value.var = "Counts" )
+crime_plot[is.na(crime_plot)] <- 0
+row.names(crime_plot) <- crime_plot$month # Make month row names
+crime_plot = crime_plot[,-1] # Remove first
+crime_plot <- cor(crime_plot)
+corrplot(crime_plot, type = "lower", order = "hclust", method = "color",
+         tl.col = "black", tl.srt =  45,number.cex=0.60,tl.cex = 0.50)+
+  theme_classic()
+```
+```{r}
+# What are top Crimes in each district ?
+district_by_crime <- ca_crime_df  %>% 
+  group_by(district, offense_code_group) %>% 
+  dplyr::summarise(Total = n()) %>% 
+  arrange(desc(Total)) %>% top_n(n = 1)
+head(district_by_crime,10)
+# Lets convert above table into dataframe 2016-2017
+district_by_crime <- as.data.frame(district_by_crime)
+district_by_crime$district <- factor(district_by_crime$district)
+district_by_crime$offense_code_group <- factor(district_by_crime$offense_code_group)
+district_by_crime <- as.data.frame(district_by_crime)
+ggplot(district_by_crime, aes(reorder(district,Total), Total, fill = offense_code_group)) + 
+  geom_bar(stat = "identity") + 
+  ggtitle("Top Crime in each district in 2016-2017") +
+  geom_text(aes(x= district, label = paste0(" ",Total)),
+            hjust =1, vjust =.25, size = 4, color = 'black', fontface = 'italic')+
+  xlab("district") + 
+  ylab("Total Count") + scale_fill_discrete(name = "Offense Category") +
+  coord_flip()+ theme_classic()
+# This is for year 2018
+district_by_crime_2018 <- df %>% 
+  filter(year == 2018) %>% 
+  group_by(district, offense_code_group) %>% 
+  dplyr::summarise(Total = n()) %>% 
+  arrange(desc(Total)) %>% top_n(n = 1)
+district_by_crime_2018 <- as.data.frame(district_by_crime_2018)
+district_by_crime_2018$district <- factor(district_by_crime_2018$district)
+district_by_crime_2018$offense_code_group <- factor(district_by_crime_2018$offense_code_group)
+ggplot(district_by_crime_2018, aes(reorder(district,Total), Total, fill = offense_code_group)) + 
+  geom_bar(stat = "identity") + 
+  ggtitle("Top Crime in each district 2018") +
+  geom_text(aes(x= district, label = paste0(" ",Total)),
+            hjust =1, vjust =.25, size = 3, color = 'black', fontface = 'italic')+
+  xlab("District") + 
+  ylab("Total Count") + scale_fill_discrete(name = "Offense Category") +
+  coord_flip() + theme_classic()
+```
+```{r, load data, include = FALSE}
+newdat <- raw_crime
+```
+```{r, clean, include = FALSE}
+#Change date from factor to date format
+newdat$DATE <- as.Date(as.character(newdat$occurred_on_date), "%m/%d/%y")
+#Assign day of week
+newdat$WEEKDAY <- weekdays(newdat$DATE)
+newdat <-
+newdat %>%
+  mutate(WEEKDAYORNOT = ifelse(WEEKDAY == "Saturday" | WEEKDAY == "Sunday", "Weekend", "Weekday"))
+#Extract hour of day
+newdat$HOUR <- str_extract(newdat$hour, "^([0-9]{1,2})")
+newdat$HOUR <- as.integer(as.character(newdat$HOUR))
+```
+```{r, weekday and time, echo = FALSE}
+div <-
+newdat %>%
+  group_by(HOUR, WEEKDAYORNOT) %>% 
+  count() %>%
+  as.data.frame() %>% 
+  mutate(average = ifelse(WEEKDAYORNOT == "Weekday", n / 5 / 119, n / 2 / 119))
+div %>% 
+  ggplot() +
+  aes(x = HOUR, y = average, color = WEEKDAYORNOT) +
+  geom_line(size = 2) +
+  scale_color_manual(values = c("hotpink3","cadetblue3"), name = "Day of Week") +
+  xlab("Hour of Day in 24Hrs") + 
+  ylab("Average Number of incidents")+ theme_classic()
+```
+
+```{r}
+#library(ggplot2)
+#library(rgeos)
+library(maptools)
+#install.packages("gpclib", type="source")
+offenses <- df[df$offense_description == "offenses",]
+require(ggmap)
+register_google(key="AIzaSyDPwFOBjLyJlG3Z_9c__uawBJcz6NGmVyE")
+map.center <- geocode("Boston, MA")
+Bos_map <- qmap(c(lon=map.center$lon, lat=map.center$lat), zoom=12)
+g <- Bos_map + geom_point(aes(x=x, y=y), data=offenses, size=3, alpha=0.2, color="red") + 
+  ggtitle("Drug Charges in Boston by Location (2011-2014)")
+datadir <- raw_crime
+setwd("E:/Masters/Sem 5/comp & visua analystics")
+neighbs <- readOGR(".", layer="Boston_Neighborhoods")
+neighbs <- spTransform(neighbs, CRS("+proj=longlat +datum=WGS84"))
+neighbs_plt <- fortify(neighbs)
+Bos_map2 <- qmap(c(lon=map.center$lon, lat=map.center$lat), zoom=11)
+Bos_map2 + geom_polygon(data=neighbs_plt, aes(x=long, y=lat, group=group), alpha=.5, color="black", fill='grey') + ggtitle("Geographic Extent of Boston")
+Bos_map2 + geom_polygon(data=neighbs_plt, aes(x=neighbs_plt$long, y=neighbs_plt$lat, group=group), alpha=0.3, color="black", fill='red') +geom_point(aes(x=raw_crime$long, y=raw_crime$lat), data=offenses, size=2, alpha=0.2, color="black")+ 
+ggtitle("Geographic Extent of Boston with Drug Charges 2015-2018 Overlay")
+```
